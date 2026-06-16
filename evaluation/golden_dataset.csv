@@ -1,0 +1,21 @@
+question,ground_truth
+What relational database and version is used by the system?,"PostgreSQL 16 (Alpine image)"
+On what ports does Qdrant run locally?,"Port 6333 for HTTP and port 6334 for gRPC"
+Which Python library is used for local embeddings?,SentenceTransformers
+What is the exact model name used for embeddings?,all-MiniLM-L6-v2
+What vector dimension does the embedding model produce?,384 dimensions
+Which large language model is used for synthesis?,"Google Gemini API (model gemini-2.5-flash)"
+What python SDK is used to query the Gemini API?,The official google-genai Python SDK
+What tables are defined in PostgreSQL mapped using SQLAlchemy?,"users, chat_sessions, chat_messages, and ingested_documents"
+What fields are stored in the chat_messages table?,"id, session_id, role, content, and created_at"
+What are the allowed roles in the chat_messages table?,"user, assistant, and system"
+What fields are stored in the ingested_documents table?,"id, filename, file_size, chunk_count, status, error_message, and created_at"
+What are the allowed statuses for ingested documents?,"pending, processing, completed, and failed"
+What database timezone configuration is used in SQLAlchemy?,"Timezone-aware TIMESTAMP WITH TIME ZONE columns (DateTime(timezone=True))"
+What is the key pattern used for caching queries in Redis?,"rag_cache:<normalized_query>, where the query is stripped and converted to lowercase"
+What fields are contained in the cached Redis JSON string?,answer and sources
+What is the default Cache Time-to-Live (TTL) in Redis?,3600 seconds (1 hour)
+What is the improvement in latency when Redis cache is hit?,From roughly 4.6 seconds down to less than 30 milliseconds (a 99.4% improvement)
+What is the name of the Qdrant collection used by default?,kb_documents
+Which method is used in qdrant-client 1.18.0 to search instead of client.search()?,client.query_points()
+What exact phrase must the LLM return if the retrieved contexts are insufficient?,"I cannot answer this question based on the provided enterprise knowledge base."

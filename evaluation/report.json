@@ -1,0 +1,311 @@
+{
+  "summary": {
+    "total_questions": 20,
+    "average_score": 4.35,
+    "average_correctness_percentage": 87.0,
+    "average_source_recall": 0.85,
+    "average_latency_seconds": 7.112
+  },
+  "evaluations": [
+    {
+      "question_index": 1,
+      "question": "What relational database and version is used by the system?",
+      "ground_truth": "PostgreSQL 16 (Alpine image)",
+      "generated_answer": "I cannot answer this question based on the provided enterprise knowledge base.",
+      "sources": [
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 1,
+      "reason": "The generated answer fails to provide the requested information despite it being present in the ground truth. While the RAG system may be restricted by its source documents, from an evaluation perspective, it failed to answer the question provided, resulting in a score of 1.",
+      "source_recall": 0,
+      "latency_seconds": 4.425211668014526
+    },
+    {
+      "question_index": 2,
+      "question": "On what ports does Qdrant run locally?",
+      "ground_truth": "Port 6333 for HTTP and port 6334 for gRPC",
+      "generated_answer": "Error: Failed to obtain a response from the reasoning backend.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 1,
+      "reason": "The generated answer is an error message indicating a system failure rather than providing the requested information, making it completely irrelevant and unhelpful.",
+      "source_recall": 1,
+      "latency_seconds": 2.441038131713867
+    },
+    {
+      "question_index": 3,
+      "question": "Which Python library is used for local embeddings?",
+      "ground_truth": "SentenceTransformers",
+      "generated_answer": "The library used for local embeddings is sentence-transformers.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "rag_overview.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer correctly identifies the library mentioned in the ground truth. While it uses lowercase and a hyphen, this is the standard naming convention for the SentenceTransformers Python package, making it accurate and correct.",
+      "source_recall": 1,
+      "latency_seconds": 4.148090839385986
+    },
+    {
+      "question_index": 4,
+      "question": "What is the exact model name used for embeddings?",
+      "ground_truth": "all-MiniLM-L6-v2",
+      "generated_answer": "The exact model name used for embeddings is sentence-transformers/all-MiniLM-L6-v2.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer is accurate. It correctly identifies the model name, and the inclusion of the 'sentence-transformers/' prefix is a standard and correct way to refer to this specific Hugging Face model repository, making it fully accurate.",
+      "source_recall": 1,
+      "latency_seconds": 3.7575409412384033
+    },
+    {
+      "question_index": 5,
+      "question": "What vector dimension does the embedding model produce?",
+      "ground_truth": "384 dimensions",
+      "generated_answer": "The embedding model produces 384-dimensional dense vectors.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer provides the exact dimension specified in the ground truth and expresses it in a clear, correct manner.",
+      "source_recall": 1,
+      "latency_seconds": 3.576732635498047
+    },
+    {
+      "question_index": 6,
+      "question": "Which large language model is used for synthesis?",
+      "ground_truth": "Google Gemini API (model gemini-2.5-flash)",
+      "generated_answer": "I cannot answer this question based on the provided enterprise knowledge base.",
+      "sources": [
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 2,
+      "reason": "The generated answer is a refusal to answer due to a lack of information in the context. While technically accurate from a RAG perspective (if the information was missing from the retrieval), it failed to answer the question, whereas the ground truth provided a specific, definitive model name.",
+      "source_recall": 0,
+      "latency_seconds": 6.097093820571899
+    },
+    {
+      "question_index": 7,
+      "question": "What python SDK is used to query the Gemini API?",
+      "ground_truth": "The official google-genai Python SDK",
+      "generated_answer": "The system uses the official google-genai Python SDK to query the Gemini API.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer provides the exact information requested and aligns perfectly with the ground truth provided.",
+      "source_recall": 1,
+      "latency_seconds": 7.417131662368774
+    },
+    {
+      "question_index": 8,
+      "question": "What tables are defined in PostgreSQL mapped using SQLAlchemy?",
+      "ground_truth": "users, chat_sessions, chat_messages, and ingested_documents",
+      "generated_answer": "The PostgreSQL schema, mapped using SQLAlchemy 2.0, consists of the following four tables:\n\n*   **users**: Stores MLOps user accounts and credentials (fields: id, username, hashed_password, created_at).\n*   **chat_sessions**: Groups conversation threads (fields: id, user_id, title, created_at).\n*   **chat_messages**: Stores individual conversation logs (fields: id, session_id, role, content, created_at).\n\n*Note: The provided documentation mentions there are four tables in total, though only three are explicitly named and detailed in the provided text.*",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 3,
+      "reason": "The generated answer correctly identifies three of the four tables mentioned in the ground truth but fails to include 'ingested_documents'. While it acknowledges the discrepancy in its own note, it fails to provide the complete answer required by the ground truth.",
+      "source_recall": 1,
+      "latency_seconds": 12.892927885055542
+    },
+    {
+      "question_index": 9,
+      "question": "What fields are stored in the chat_messages table?",
+      "ground_truth": "id, session_id, role, content, and created_at",
+      "generated_answer": "The `chat_messages` table contains the following fields: \n- id (UUID)\n- session_id (UUID foreign key, non-nullable, cascades on delete)\n- role (String 50: user, assistant, system)\n- content (Text)\n- created_at",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer includes all the fields mentioned in the ground truth while providing additional, contextually correct technical details that enhance the accuracy without contradicting the ground truth.",
+      "source_recall": 1,
+      "latency_seconds": 25.23623538017273
+    },
+    {
+      "question_index": 10,
+      "question": "What are the allowed roles in the chat_messages table?",
+      "ground_truth": "user, assistant, and system",
+      "generated_answer": "The allowed roles in the `chat_messages` table are: user, assistant, and system.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer perfectly matches the ground truth and provides the information in a clear, complete sentence.",
+      "source_recall": 1,
+      "latency_seconds": 2.984410524368286
+    },
+    {
+      "question_index": 11,
+      "question": "What fields are stored in the ingested_documents table?",
+      "ground_truth": "id, filename, file_size, chunk_count, status, error_message, and created_at",
+      "generated_answer": "The ingested_documents table stores the following fields:\n- id (UUID)\n- filename (String 255)\n- file_size (Integer bytes)\n- chunk_count (Integer)\n- status (String 50: pending, processing, completed, failed)\n- error_message (Text, nullable)\n- created_at",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer includes all the fields mentioned in the ground truth and provides helpful additional context (data types and status values) without contradicting the reference. It is accurate and provides more detail while remaining completely consistent with the ground truth.",
+      "source_recall": 1,
+      "latency_seconds": 11.238181114196777
+    },
+    {
+      "question_index": 12,
+      "question": "What are the allowed statuses for ingested documents?",
+      "ground_truth": "pending, processing, completed, and failed",
+      "generated_answer": "The allowed statuses for ingested documents are: pending, processing, completed, and failed.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer is perfectly accurate and matches the ground truth exactly, listing all required statuses.",
+      "source_recall": 1,
+      "latency_seconds": 15.17733359336853
+    },
+    {
+      "question_index": 13,
+      "question": "What database timezone configuration is used in SQLAlchemy?",
+      "ground_truth": "Timezone-aware TIMESTAMP WITH TIME ZONE columns (DateTime(timezone=True))",
+      "generated_answer": "The database tables use timezone-aware TIMESTAMP WITH TIME ZONE columns (DateTime(timezone=True)).",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer provides the exact information contained in the ground truth, simply framed in a complete sentence.",
+      "source_recall": 1,
+      "latency_seconds": 3.525433301925659
+    },
+    {
+      "question_index": 14,
+      "question": "What is the key pattern used for caching queries in Redis?",
+      "ground_truth": "rag_cache:<normalized_query>, where the query is stripped and converted to lowercase",
+      "generated_answer": "The key pattern used for caching queries in Redis is \"rag_cache:<normalized_query>\", where the query is stripped and converted to lowercase.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer is identical in meaning and content to the ground truth, providing the exact key pattern and the logic behind the normalization process.",
+      "source_recall": 1,
+      "latency_seconds": 3.802462100982666
+    },
+    {
+      "question_index": 15,
+      "question": "What fields are contained in the cached Redis JSON string?",
+      "ground_truth": "answer and sources",
+      "generated_answer": "The cached Redis JSON string contains the fields \"answer\" and \"sources\".",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer is identical in meaning to the ground truth and provides the correct information clearly.",
+      "source_recall": 1,
+      "latency_seconds": 10.571566820144653
+    },
+    {
+      "question_index": 16,
+      "question": "What is the default Cache Time-to-Live (TTL) in Redis?",
+      "ground_truth": "3600 seconds (1 hour)",
+      "generated_answer": "The default Cache Time-To-Live (TTL) is 3600 seconds (1 hour).",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer matches the ground truth exactly in both value and context.",
+      "source_recall": 1,
+      "latency_seconds": 3.840468168258667
+    },
+    {
+      "question_index": 17,
+      "question": "What is the improvement in latency when Redis cache is hit?",
+      "ground_truth": "From roughly 4.6 seconds down to less than 30 milliseconds (a 99.4% improvement)",
+      "generated_answer": "Using the Redis cache reduces RAG query retrieval latency from roughly 4.6 seconds down to less than 30 milliseconds, representing a 99.4% improvement.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer captures all the quantitative data points from the ground truth accurately and presents them in a clear, correct context.",
+      "source_recall": 1,
+      "latency_seconds": 6.243503570556641
+    },
+    {
+      "question_index": 18,
+      "question": "What is the name of the Qdrant collection used by default?",
+      "ground_truth": "kb_documents",
+      "generated_answer": "The name of the default Qdrant vector database collection is \"kb_documents\".",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "rag_overview.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer provides the exact information requested and matches the ground truth perfectly.",
+      "source_recall": 1,
+      "latency_seconds": 3.941199779510498
+    },
+    {
+      "question_index": 19,
+      "question": "Which method is used in qdrant-client 1.18.0 to search instead of client.search()?",
+      "ground_truth": "client.query_points()",
+      "generated_answer": "In qdrant-client version 1.18.0, the `client.query_points()` method is used instead of `client.search()`.",
+      "sources": [
+        "enterprise_rag_specs.txt",
+        "enterprise_rag_specs.txt",
+        "rag_overview.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer correctly identifies the method 'client.query_points()' as the replacement for 'client.search()' in the specified version, matching the ground truth perfectly.",
+      "source_recall": 1,
+      "latency_seconds": 3.6094212532043457
+    },
+    {
+      "question_index": 20,
+      "question": "What exact phrase must the LLM return if the retrieved contexts are insufficient?",
+      "ground_truth": "I cannot answer this question based on the provided enterprise knowledge base.",
+      "generated_answer": "I cannot answer this question based on the provided enterprise knowledge base.",
+      "sources": [
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt",
+        "rag_test_comprehensive.txt"
+      ],
+      "score": 5,
+      "reason": "The generated answer matches the ground truth exactly, providing the precise phrase requested by the prompt.",
+      "source_recall": 0,
+      "latency_seconds": 7.305262804031372
+    }
+  ]
+}

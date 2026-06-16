@@ -1,0 +1,55 @@
+Enterprise RAG Knowledge Assistant System Architecture Specifications
+
+1. OVERVIEW & SERVICE STACK
+The Enterprise RAG Knowledge Assistant is a production-grade, local-first retrieval augmented generation platform.
+The core stack consists of:
+- Backend: FastAPI framework running asynchronously.
+- Relational Database: PostgreSQL 16 (Alpine image) running locally via Docker on port 5432, storing auditing, user session state, and messaging history logs.
+- Vector Database: Qdrant running locally via Docker on port 6333 (HTTP) and 6334 (gRPC) to store and query high-dimensional embeddings.
+- Cache and State Management: Redis 7 (Alpine image) running locally via Docker on port 6379, acting as a high-performance query cache.
+- Embedding Engine: SentenceTransformers all-MiniLM-L6-v2 running locally.
+- Large Language Model: Google Gemini API (model gemini-2.5-flash) via the official google-genai Python SDK.
+
+2. FASTAPI APPLICATION CONFIGURATION
+The FastAPI server is bootstrapped in app/main.py. It utilizes:
+- A custom structured logging system built with structlog, producing colored output in development and structured JSON output in production.
+- Lifespan context manager that handles connection pools and preloads models.
+- Global exception handlers catching Starlette HTTPExceptions (returning details and error status), Pydantic RequestValidationErrors (returning 422 with validation issues), and general Exceptions (returning 500 server errors).
+- Cross-service API routing mounted under the consolidated router namespace prefix /api/v1.
+
+3. POSTGRESQL SCHEMA SPECIFICATIONS
+The database tables are mapped in app/models/sqlalchemy_models.py using SQLAlchemy 2.0. They use timezone-aware TIMESTAMP WITH TIME ZONE columns (DateTime(timezone=True)).
+The schema contains four tables:
+- users: Stores MLOps user accounts and credentials. Fields: id (UUID), username (String 150, unique index), hashed_password (String 255), and created_at.
+- chat_sessions: Groups conversation threads. Fields: id (UUID), user_id (UUID foreign key, nullable), title (String 255, default 'New Conversation'), and created_at.
+- chat_messages: Stores individual conversation logs. Fields: id (UUID), session_id (UUID foreign key, non-nullable, cascades on delete), role (String 50: user, assistant, system), content (Text), and created_at.
+- ingested_documents: Audits chunked files. Fields: id (UUID), filename (String 255), file_size (Integer bytes), chunk_count (Integer), status (String 50: pending, processing, completed, failed), error_message (Text, nullable), and created_at.
+
+4. REDIS CACHING SPECIFICATIONS
+The Redis integration is defined in app/services/redis_cache.py using redis.asyncio.
+- Connections are handled asynchronously via from_url.
+- The service exposes methods for get, set, delete, and ping.
+- Query Caching Logic: RAG responses are stored with the key pattern "rag_cache:<normalized_query>", where the query is stripped and converted to lowercase.
+- Cached entries are stored as a JSON string containing the fields "answer" and "sources".
+- The default Cache Time-To-Live (TTL) is 3600 seconds (1 hour).
+- Using the Redis cache reduces RAG query retrieval latency from roughly 4.6 seconds down to less than 30 milliseconds (a 99.4% improvement).
+
+5. QDRANT VECTOR STORE SPECIFICATIONS
+The Qdrant integration is defined in app/services/qdrant.py.
+- The default vector database collection is named "kb_documents".
+- Collection Configuration: Size is set to 384 dimensions, and distance metric is set to COSINE.
+- Client API: In qdrant-client version 1.18.0, the old client.search() method is superseded by client.query_points(), which accepts arguments for collection_name, query (the embedding float list), query_filter (for metadata matching), and limit.
+- Payload Schema: Points stored in Qdrant carry metadata fields: document_id (UUID), filename, text (the actual raw chunk string), and chunk_index.
+
+6. EMBEDDING PIPELINE
+The embedding service is located in app/services/embedding.py.
+- Model: uses sentence-transformers/all-MiniLM-L6-v2 to compute 384-dimensional dense vectors.
+- Event Loop Protection: Because model loading and encoding are synchronous CPU-bound operations in the sentence-transformers library, they are executed in separate threads using asyncio.to_thread to keep the main FastAPI event loop fully responsive.
+- Preloading: The model is preloaded on application boot during the FastAPI lifespan startup phase.
+
+7. GROUNDED REASONING & LLM UTILITIES
+The LLM engine is located in app/services/llm.py, and the RAG logic is orchestrated in app/services/rag.py.
+- The system employs google-genai SDK to request text completions from gemini-2.5-flash.
+- RAG Pipeline: When a message is sent, the query is embedded, relevant chunks are fetched from Qdrant, and a prompt is compiled.
+- Hallucination Prevention: A strict system instruction is passed to the LLM forcing it to answer using ONLY the retrieved contexts. If the contexts are insufficient, it must reply exactly with: "I cannot answer this question based on the provided enterprise knowledge base."
+- Thread Safety: Just like the embedding model, Gemini's synchronous SDK calls are wrapped in asyncio.to_thread.

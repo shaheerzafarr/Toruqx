@@ -1,0 +1,154 @@
+import uuid
+import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
+from qdrant_client.http import models as qmodels
+
+from app.models.sqlalchemy_models import IngestedDocument
+from app.services.embedding import embedding_service
+from app.services.qdrant import qdrant_service
+
+logger = structlog.get_logger(__name__)
+
+def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[str]:
+    """
+    Splits text recursively by paragraphs, lines, and words to respect chunk boundaries.
+    """
+    if not text:
+        return []
+    
+    paragraphs = text.split("\n\n")
+    chunks = []
+    current_chunk = ""
+    
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+        
+        # If a single paragraph is larger than chunk_size, split it down further
+        if len(para) > chunk_size:
+            # Output current accumulated chunk first
+            if current_chunk:
+                chunks.append(current_chunk)
+                current_chunk = ""
+            
+            lines = para.split("\n")
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                if len(line) > chunk_size:
+                    # Split line by words
+                    words = line.split(" ")
+                    temp_chunk = ""
+                    for word in words:
+                        if len(temp_chunk) + len(word) + 1 > chunk_size:
+                            chunks.append(temp_chunk.strip())
+                            # Setup next chunk with overlap
+                            overlap_idx = max(0, len(temp_chunk) - chunk_overlap)
+                            temp_chunk = temp_chunk[overlap_idx:] + " " + word
+                        else:
+                            temp_chunk += " " + word
+                    if temp_chunk.strip():
+                        current_chunk = temp_chunk.strip()
+                else:
+                    if len(current_chunk) + len(line) + 1 > chunk_size:
+                        chunks.append(current_chunk)
+                        overlap_idx = max(0, len(current_chunk) - chunk_overlap)
+                        current_chunk = current_chunk[overlap_idx:] + "\n" + line
+                    else:
+                        current_chunk = (current_chunk + "\n" + line).strip()
+        else:
+            if len(current_chunk) + len(para) + 2 > chunk_size:
+                chunks.append(current_chunk)
+                overlap_idx = max(0, len(current_chunk) - chunk_overlap)
+                current_chunk = current_chunk[overlap_idx:] + "\n\n" + para
+            else:
+                current_chunk = (current_chunk + "\n\n" + para).strip()
+                
+    if current_chunk:
+        chunks.append(current_chunk)
+        
+    return [c.strip() for c in chunks if c.strip()]
+
+
+class IngestionService:
+    @staticmethod
+    async def ingest_document(
+        db: AsyncSession,
+        filename: str,
+        content: str,
+        file_size: int
+    ) -> IngestedDocument:
+        logger.info("Starting document ingestion...", filename=filename, size=file_size)
+        
+        # 1. Create base DB audit log in 'pending' status
+        doc_record = IngestedDocument(
+            filename=filename,
+            file_size=file_size,
+            status="pending",
+            chunk_count=0
+        )
+        db.add(doc_record)
+        await db.commit()
+        await db.refresh(doc_record)
+
+        try:
+            # 2. Update status to processing
+            doc_record.status = "processing"
+            await db.commit()
+            await db.refresh(doc_record)
+
+            # 3. Chunk the text (using size=1000, overlap=300 for dense embeddings context)
+            chunks = chunk_text(content, chunk_size=1000, chunk_overlap=300)
+            doc_record.chunk_count = len(chunks)
+            await db.commit()
+
+            if not chunks:
+                raise ValueError("Document content was empty or could not be chunked.")
+
+            # 4. Generate local embeddings (runs asynchronously in CPU/GPU thread pool)
+            logger.info("Generating embeddings for chunks...", count=len(chunks))
+            embeddings = await embedding_service.get_embeddings(chunks)
+
+            # 5. Prepare data points for Qdrant
+            points = []
+            for idx, (chunk, vector) in enumerate(zip(chunks, embeddings)):
+                point_id = str(uuid.uuid4())
+                points.append(
+                    qmodels.PointStruct(
+                        id=point_id,
+                        vector=vector,
+                        payload={
+                            "document_id": str(doc_record.id),
+                            "filename": filename,
+                            "text": chunk,
+                            "chunk_index": idx
+                        }
+                    )
+                )
+
+            # 6. Upload points to Qdrant kb_documents collection
+            logger.info("Uploading points to Qdrant...", points_count=len(points))
+            await qdrant_service.client.upsert(
+                collection_name="kb_documents",
+                wait=True,
+                points=points
+            )
+
+            # 7. Update status to completed
+            doc_record.status = "completed"
+            await db.commit()
+            await db.refresh(doc_record)
+            logger.info("Document ingestion completed successfully.", filename=filename, doc_id=str(doc_record.id))
+
+        except Exception as e:
+            logger.exception("Document ingestion pipeline failure", filename=filename, error=str(e))
+            doc_record.status = "failed"
+            doc_record.error_message = str(e)
+            await db.commit()
+            await db.refresh(doc_record)
+
+        return doc_record
+
+ingestion_service = IngestionService()
