@@ -63,22 +63,25 @@ class RAGService:
         # 4. Cache Miss - Retrieve relevant document chunks from Qdrant
         logger.info("RAG Cache Miss. Querying vector store and LLM...", query=query)
         query_vector = await embedding_service.get_embedding(query)
-        # Retrieve more points to allow deduplication of duplicates
+        # Retrieve more points to allow deduplication and maximize recall
+        retrieve_limit = max(limit * 5, 30)
         hits = await qdrant_service.search_similarity(
             collection_name="kb_documents",
             query_vector=query_vector,
-            limit=limit * 5
+            limit=retrieve_limit
         )
 
         # Deduplicate hits by content text to prevent identical chunks from duplicate file uploads crowding out results
         unique_hits = []
         seen_texts = set()
+        # Cap LLM context chunks generously to ensure high recall for list queries
+        max_context_chunks = max(limit, 15)
         for hit in hits:
             text_content = hit["payload"].get("text", "").strip()
             if text_content not in seen_texts:
                 seen_texts.add(text_content)
                 unique_hits.append(hit)
-                if len(unique_hits) >= limit:
+                if len(unique_hits) >= max_context_chunks:
                     break
         hits = unique_hits
 
@@ -226,22 +229,25 @@ class RAGService:
         # 4. Cache Miss - Retrieve relevant document chunks from Qdrant
         logger.info("RAG Streaming Cache Miss. Querying vector store and LLM...", query=query)
         query_vector = await embedding_service.get_embedding(query)
-        # Retrieve more points to allow deduplication of duplicates
+        # Retrieve more points to allow deduplication and maximize recall
+        retrieve_limit = max(limit * 5, 30)
         hits = await qdrant_service.search_similarity(
             collection_name="kb_documents",
             query_vector=query_vector,
-            limit=limit * 5
+            limit=retrieve_limit
         )
 
         # Deduplicate hits by content text to prevent identical chunks from duplicate file uploads crowding out results
         unique_hits = []
         seen_texts = set()
+        # Cap LLM context chunks generously to ensure high recall for list queries
+        max_context_chunks = max(limit, 15)
         for hit in hits:
             text_content = hit["payload"].get("text", "").strip()
             if text_content not in seen_texts:
                 seen_texts.add(text_content)
                 unique_hits.append(hit)
-                if len(unique_hits) >= limit:
+                if len(unique_hits) >= max_context_chunks:
                     break
         hits = unique_hits
 
