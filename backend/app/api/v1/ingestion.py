@@ -57,18 +57,37 @@ async def ingest_file(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload a text file (.txt, .md, .json) to chunk, embed, and index in Qdrant.
+    Upload a text file (.txt, .md, .json) or a PDF (.pdf) to chunk, embed, and index in Qdrant.
     """
-    if not file.filename.endswith((".txt", ".md", ".json")):
+    if not file.filename.lower().endswith((".txt", ".md", ".json", ".pdf")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported file format. Please upload text-based files (.txt, .md, .json)."
+            detail="Unsupported file format. Please upload text-based files (.txt, .md, .json) or PDF (.pdf)."
         )
     
     try:
         content_bytes = await file.read()
-        content = content_bytes.decode("utf-8")
         file_size = len(content_bytes)
+        
+        if file.filename.lower().endswith(".pdf"):
+            import io
+            from pypdf import PdfReader
+            
+            try:
+                pdf_file = io.BytesIO(content_bytes)
+                reader = PdfReader(pdf_file)
+                text_parts = []
+                for page in reader.pages:
+                    text_parts.append(page.extract_text() or "")
+                content = "\n".join(text_parts)
+            except Exception as pdf_err:
+                logger.error("Failed to parse PDF file content", filename=file.filename, error=str(pdf_err))
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to parse PDF document content: {str(pdf_err)}"
+                )
+        else:
+            content = content_bytes.decode("utf-8")
         
         doc = await ingestion_service.ingest_document(
             db=db,

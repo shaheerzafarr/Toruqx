@@ -89,11 +89,11 @@ export default function DocumentUploadPage() {
   // 1. Submit file to FastAPI backend
   const processUpload = async (file: File) => {
     const filename = file.name;
-    const allowedExtensions = ['.txt', '.md', '.json'];
+    const allowedExtensions = ['.txt', '.md', '.json', '.pdf'];
     const isAllowed = allowedExtensions.some(ext => filename.toLowerCase().endsWith(ext));
 
     if (!isAllowed) {
-      setError('Unsupported file type. Only text files (.txt, .md, .json) are allowed.');
+      setError('Unsupported file type. Only text, MD, JSON, and PDF files (.txt, .md, .json, .pdf) are allowed.');
       return;
     }
 
@@ -229,7 +229,7 @@ export default function DocumentUploadPage() {
             type="file"
             id="file-upload"
             multiple={false}
-            accept=".txt,.md,.json"
+            accept=".txt,.md,.json,.pdf"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -246,7 +246,7 @@ export default function DocumentUploadPage() {
           </label>
           
           <p className="text-[10px] text-slate-600 font-bold uppercase mt-2 tracking-wider">
-            TXT, MD, or JSON files only (Max 10MB)
+            TXT, MD, JSON, or PDF files only (Max 10MB)
           </p>
         </div>
 
@@ -275,6 +275,8 @@ export default function DocumentUploadPage() {
                     <div className="p-2.5 bg-slate-950 border border-slate-900 rounded-xl">
                       {upload.filename.endsWith('.json') ? (
                         <FileCode className="h-5 w-5 text-indigo-400" />
+                      ) : upload.filename.endsWith('.pdf') ? (
+                        <FileText className="h-5 w-5 text-rose-500" />
                       ) : (
                         <FileText className="h-5 w-5 text-blue-400" />
                       )}
