@@ -54,6 +54,11 @@ async function apiRequest<T>(
     throw new Error(errorMessage);
   }
 
+  // Handle 204 No Content (empty response body)
+  if (response.status === 204) {
+    return null as unknown as T;
+  }
+
   // If response is text/event-stream, we return the response directly so the caller can handle the stream
   const contentType = response.headers.get('content-type');
   if (contentType && contentType.includes('text/event-stream')) {
