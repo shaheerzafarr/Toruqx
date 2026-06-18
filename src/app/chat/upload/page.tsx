@@ -292,11 +292,11 @@ export default function DocumentUploadPage() {
               uploads.map((upload) => (
                 <div 
                   key={upload.id} 
-                  className="p-4 bg-slate-900/25 border border-slate-900/80 rounded-2xl flex items-center justify-between gap-4"
+                  className="p-4 bg-slate-900/25 border border-slate-900/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
                 >
                   {/* File Metadata */}
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="p-2.5 bg-slate-950 border border-slate-900 rounded-xl">
+                  <div className="flex items-center gap-3 overflow-hidden w-full sm:w-auto">
+                    <div className="p-2.5 bg-slate-950 border border-slate-900 rounded-xl shrink-0">
                       {upload.filename.endsWith('.json') ? (
                         <FileCode className="h-5 w-5 text-indigo-400" />
                       ) : upload.filename.endsWith('.pdf') ? (
@@ -305,7 +305,7 @@ export default function DocumentUploadPage() {
                         <FileText className="h-5 w-5 text-blue-400" />
                       )}
                     </div>
-                    <div className="overflow-hidden">
+                    <div className="overflow-hidden min-w-0 flex-1">
                       <div className="text-xs font-semibold text-slate-200 truncate" title={upload.filename}>
                         {upload.filename}
                       </div>
@@ -316,7 +316,7 @@ export default function DocumentUploadPage() {
                   </div>
 
                   {/* Realtime Ingestion Status Block */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2.5 sm:pt-0 border-t border-slate-900/40 sm:border-t-0">
                     {upload.status === 'pending' && (
                       <div className="flex items-center gap-2 text-[10px] font-bold text-yellow-500 bg-yellow-500/5 border border-yellow-500/15 px-3 py-1 rounded-full uppercase tracking-wider">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
