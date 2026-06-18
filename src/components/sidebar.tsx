@@ -197,20 +197,20 @@ export default function Sidebar() {
             return (
               <div 
                 key={session.id}
-                className={`group relative flex items-center justify-center ${isCollapsed ? 'w-10' : 'w-full'}`}
+                className={`group relative flex items-center ${isCollapsed ? 'w-10 justify-center' : 'w-full'}`}
               >
                 <Link
                   href={`/chat/${session.id}`}
                   title={session.title}
                   onClick={() => { if (window.innerWidth < 768) setIsMobileOpen(false); }}
-                  className={`flex items-center rounded-xl transition-all ${
+                  className={`flex items-center rounded-xl transition-all border ${
                     isCollapsed 
                       ? 'w-10 h-10 justify-center' 
                       : 'flex-1 gap-2.5 px-3 py-2.5 pr-10 text-sm text-left'
                   } ${
                     isActive
-                      ? 'bg-slate-900 text-slate-100 border border-slate-800/80'
-                      : 'text-slate-400 hover:bg-slate-900/40 hover:text-slate-200'
+                      ? 'bg-slate-900 text-slate-100 border-slate-800/80'
+                      : 'text-slate-400 hover:bg-slate-900/40 hover:text-slate-200 border-transparent'
                   }`}
                 >
                   <MessageSquare className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-slate-300' : 'text-slate-500'}`} />
