@@ -68,7 +68,7 @@ export default function ChatDashboardPage() {
         </button>
         <div>
           <h1 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-            RAG Assistant Workspace
+            Toruqx Workspace
           </h1>
           <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
             Home Dashboard
@@ -89,7 +89,7 @@ export default function ChatDashboardPage() {
             <span>Ready for Grounded Retrieval</span>
           </div>
           <h1 className="text-4xl font-extrabold tracking-tight text-slate-100 sm:text-5xl">
-            Enterprise RAG Workspace
+            Toruqx RAG Workspace
           </h1>
           <p className="text-base text-slate-400 max-w-lg mx-auto">
             Interact with your ingested enterprise knowledge base securely using local embeddings, caching, and stream-synthesis.

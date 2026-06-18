@@ -128,7 +128,7 @@ class RAGService:
             })
 
         system_instruction = (
-            "You are a production-grade Enterprise RAG Knowledge Assistant.\n"
+            "You are a production-grade Toruqx Secure RAG Engine.\n"
             "Analyze and answer the user's question using ONLY the provided contexts below.\n"
             "If the provided contexts do not contain enough information to answer the question, "
             "reply exactly with: 'No matches found after checking all records.'\n"
@@ -320,7 +320,7 @@ class RAGService:
         yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
         system_instruction = (
-            "You are a production-grade Enterprise RAG Knowledge Assistant.\n"
+            "You are a production-grade Toruqx Secure RAG Engine.\n"
             "Analyze and answer the user's question using ONLY the provided contexts below.\n"
             "If the provided contexts do not contain enough information to answer the question, "
             "reply exactly with: 'No matches found after checking all records.'\n"

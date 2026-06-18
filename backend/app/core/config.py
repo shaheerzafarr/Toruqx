@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Enterprise RAG Knowledge Assistant"
+    PROJECT_NAME: str = "Toruqx Secure RAG Engine"
     ENV: str = "development"
     LOG_LEVEL: str = "INFO"
 

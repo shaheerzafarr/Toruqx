@@ -140,12 +140,42 @@ export default function SignupPage() {
 
       <div className="w-full max-w-md bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 p-8 rounded-2xl shadow-2xl relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex p-3 bg-slate-950 border border-slate-800 rounded-xl mb-4">
-            <UserPlus className="h-6 w-6 text-slate-300" />
+          <div className="inline-flex p-3 bg-slate-950 border border-slate-800 rounded-2xl mb-4 shadow-xl shadow-indigo-500/5">
+            <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+                stroke="url(#toruqx-grad-signup)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M7.5 12c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5-2.015 4.5-4.5 4.5-4.5-2.015-4.5-4.5z"
+                stroke="url(#toruqx-grad-alt-signup)"
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+              />
+              <path
+                d="M12 8v8M10 10l4 4M14 10l-4 4"
+                stroke="#f8fafc"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <defs>
+                <linearGradient id="toruqx-grad-signup" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#3b82f6" />
+                  <stop offset="0.5" stopColor="#6366f1" />
+                  <stop offset="1" stopColor="#a855f7" />
+                </linearGradient>
+                <linearGradient id="toruqx-grad-alt-signup" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#ec4899" />
+                  <stop offset="1" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">Create Account</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-100">Join Toruqx</h1>
           <p className="text-sm text-slate-400 mt-2">
-            Get started with your secure workspace
+            Get started with your secure RAG workspace
           </p>
         </div>
 

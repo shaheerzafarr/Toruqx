@@ -112,24 +112,94 @@ export default function Sidebar() {
     >
       {/* Sidebar Header */}
       <div className={`p-4 border-b border-slate-900/60 flex items-center justify-between ${isCollapsed ? 'justify-center' : ''}`}>
-        {!isCollapsed && (
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="p-2 bg-slate-900 border border-slate-800 rounded-lg shrink-0">
-              <Database className="h-5 w-5 text-slate-300" />
+        {!isCollapsed ? (
+          <>
+            <div className="flex items-center gap-3 overflow-hidden animate-fade-in">
+              <div className="p-1.5 bg-slate-950 border border-slate-900 rounded-xl shrink-0 shadow-lg shadow-indigo-500/5">
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+                    stroke="url(#toruqx-grad)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M7.5 12c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5-2.015 4.5-4.5 4.5-4.5-2.015-4.5-4.5z"
+                    stroke="url(#toruqx-grad-alt)"
+                    strokeWidth="1.5"
+                    strokeDasharray="3 3"
+                  />
+                  <path
+                    d="M12 8v8M10 10l4 4M14 10l-4 4"
+                    stroke="#f8fafc"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="toruqx-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#3b82f6" />
+                      <stop offset="0.5" stopColor="#6366f1" />
+                      <stop offset="1" stopColor="#a855f7" />
+                    </linearGradient>
+                    <linearGradient id="toruqx-grad-alt" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#ec4899" />
+                      <stop offset="1" stopColor="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              <div className="overflow-hidden">
+                <h2 className="text-base font-extrabold bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-500 bg-clip-text text-transparent tracking-wide leading-none truncate">Toruqx</h2>
+                <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider block mt-1">Knowledge Engine</span>
+              </div>
             </div>
-            <div className="overflow-hidden">
-              <h2 className="text-sm font-bold text-slate-100 leading-none truncate">RAG Assistant</h2>
-              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider block mt-0.5">Enterprise</span>
-            </div>
-          </div>
+            <button
+              onClick={window.innerWidth < 768 ? () => setIsMobileOpen(false) : toggleCollapsed}
+              className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent hover:border-slate-800 rounded-xl transition-all cursor-pointer"
+              title="Collapse Sidebar"
+            >
+              <Menu className="h-4.5 w-4.5" />
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={toggleCollapsed}
+            className="p-1.5 bg-slate-950 border border-slate-900 rounded-xl shrink-0 cursor-pointer hover:border-slate-800 hover:bg-slate-900/50 transition-all flex items-center justify-center shadow-lg shadow-indigo-500/5"
+            title="Expand Sidebar"
+          >
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+                stroke="url(#toruqx-grad-collapsed)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M7.5 12c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5-2.015 4.5-4.5 4.5-4.5-2.015-4.5-4.5z"
+                stroke="url(#toruqx-grad-alt-collapsed)"
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+              />
+              <path
+                d="M12 8v8M10 10l4 4M14 10l-4 4"
+                stroke="#f8fafc"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <defs>
+                <linearGradient id="toruqx-grad-collapsed" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#3b82f6" />
+                  <stop offset="0.5" stopColor="#6366f1" />
+                  <stop offset="1" stopColor="#a855f7" />
+                </linearGradient>
+                <linearGradient id="toruqx-grad-alt-collapsed" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#ec4899" />
+                  <stop offset="1" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </button>
         )}
-        <button
-          onClick={window.innerWidth < 768 ? () => setIsMobileOpen(false) : toggleCollapsed}
-          className={`p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent hover:border-slate-800 rounded-xl transition-all cursor-pointer ${isCollapsed ? 'mx-auto' : ''}`}
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          <Menu className="h-4.5 w-4.5" />
-        </button>
       </div>
 
       {/* Primary Action Button */}

@@ -3,8 +3,8 @@ import { AuthProvider } from '../components/auth-provider';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Enterprise RAG Knowledge Assistant',
-  description: 'Production-grade Conversational AI search and citation grounding platform',
+  title: 'Toruqx | Secure Enterprise RAG Engine',
+  description: 'Toruqx: Production-grade Conversational AI search and citation grounding platform',
 };
 
 export default function RootLayout({
