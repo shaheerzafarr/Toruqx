@@ -65,6 +65,22 @@ class QdrantService:
                 )
             )
             logger.info("Qdrant text payload index verified/created.", collection_name=collection_name)
+
+            # Ensure document_id field is indexed (required for deletion filters on Qdrant Cloud)
+            await self.client.create_payload_index(
+                collection_name=collection_name,
+                field_name="document_id",
+                field_schema=qmodels.PayloadSchemaType.KEYWORD
+            )
+            logger.info("Qdrant document_id payload index verified/created.", collection_name=collection_name)
+
+            # Ensure user_id field is indexed (highly recommended for multi-tenant queries)
+            await self.client.create_payload_index(
+                collection_name=collection_name,
+                field_name="user_id",
+                field_schema=qmodels.PayloadSchemaType.KEYWORD
+            )
+            logger.info("Qdrant user_id payload index verified/created.", collection_name=collection_name)
         except Exception as e:
             logger.error("Failed to initialize Qdrant collection", collection_name=collection_name, error=str(e))
             raise e

@@ -169,7 +169,10 @@ async def delete_ingested_document(
     """
     try:
         # Fetch document record
-        query = select(IngestedDocument).where(IngestedDocument.id == document_id, IngestedDocument.user_id == current_user.id)
+        query = select(IngestedDocument).where(
+            IngestedDocument.id == document_id,
+            (IngestedDocument.user_id == current_user.id) | (IngestedDocument.user_id.is_(None))
+        )
         result = await db.execute(query)
         doc = result.scalar_one_or_none()
         if not doc:
