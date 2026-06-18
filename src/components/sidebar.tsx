@@ -280,7 +280,7 @@ export default function Sidebar() {
                   <button
                     onClick={(e) => handleDeleteSession(e, session.id)}
                     title="Delete Chat"
-                    className="absolute right-2.5 opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all cursor-pointer z-10"
+                    className="absolute right-2.5 opacity-100 md:opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all cursor-pointer z-10"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
