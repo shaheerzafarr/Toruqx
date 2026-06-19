@@ -135,7 +135,7 @@ export default function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
               : 'bg-slate-100 text-slate-950 border-transparent rounded-tr-none shadow-md'
           }`}
         >
-          <div className="text-sm leading-relaxed select-text prose prose-invert max-w-none">
+          <div className="text-sm leading-relaxed select-text prose prose-invert max-w-none break-words">
             <ReactMarkdown 
               remarkPlugins={[remarkGfm]}
               components={MarkdownComponents}

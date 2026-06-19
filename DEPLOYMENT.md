@@ -75,7 +75,7 @@ Before deploying code, set up your serverless datastores.
    - **Root Directory**: Keep as root `./` (Vercel automatically compiles the Next.js app in the root directory)
 5. Expand **Environment Variables** and add:
    - `NEXT_PUBLIC_API_URL` = `https://toruqx-backend.onrender.com` (Your live Render backend URL)
-   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = (Your Cloudflare Turnstile Site Key)
+   - `NEXT_PUBLIC_TURNSTILE_SITEKEY` = (Your Cloudflare Turnstile Site Key. Note: Both `NEXT_PUBLIC_TURNSTILE_SITEKEY` and `NEXT_PUBLIC_TURNSTILE_SITE_KEY` are supported by the frontend code)
 6. Click **Deploy**. Vercel will build and host your site in less than 2 minutes, giving you a custom production domain name (e.g. `https://toruqx.vercel.app`).
 
 ---

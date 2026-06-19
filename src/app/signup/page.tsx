@@ -35,7 +35,7 @@ export default function SignupPage() {
             containerRef.current.innerHTML = '';
           }
           const id = (window as any).turnstile.render(containerRef.current, {
-            sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY || "1x00000000000000000000AA",
+            sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY || process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA",
             theme: 'dark',
             callback: (token: string) => {
               if (active) {
@@ -112,7 +112,7 @@ export default function SignupPage() {
       return;
     }
 
-    const bypass = process.env.NEXT_PUBLIC_BYPASS_TURNSTILE === 'true';
+    const bypass = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_BYPASS_TURNSTILE === 'true';
     const token = turnstileToken || (bypass ? 'dev-bypass-token' : null);
 
     if (!token) {
@@ -243,13 +243,15 @@ export default function SignupPage() {
           </div>
 
           {/* Cloudflare Turnstile Verification Widget */}
-          <div className="flex justify-center my-3 bg-slate-950/20 py-2 border border-slate-800/30 rounded-xl">
-            <div ref={containerRef}></div>
-          </div>
+          {process.env.NODE_ENV !== 'development' && process.env.NEXT_PUBLIC_BYPASS_TURNSTILE !== 'true' && (
+            <div className="flex justify-center my-3 bg-slate-950/20 py-2 border border-slate-800/30 rounded-xl">
+              <div ref={containerRef}></div>
+            </div>
+          )}
 
           <button
             type="submit"
-            disabled={isLoading || (!turnstileToken && process.env.NEXT_PUBLIC_BYPASS_TURNSTILE !== 'true')}
+            disabled={isLoading || (!turnstileToken && process.env.NODE_ENV !== 'development' && process.env.NEXT_PUBLIC_BYPASS_TURNSTILE !== 'true')}
             className="w-full flex items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-950 font-semibold rounded-xl text-sm transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {isLoading ? (

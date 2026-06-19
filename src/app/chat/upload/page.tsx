@@ -197,7 +197,7 @@ export default function DocumentUploadPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-950 overflow-hidden relative">
+    <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] bg-slate-950 overflow-hidden relative">
       {/* Header */}
       <header className="px-6 py-4 border-b border-slate-900/60 bg-slate-950/80 backdrop-blur-md flex items-center gap-4 shrink-0 z-10">
         <button
@@ -219,7 +219,7 @@ export default function DocumentUploadPage() {
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 relative">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 relative">
         <div className="max-w-3xl mx-auto w-full space-y-8">
           
           {/* Page Info */}

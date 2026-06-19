@@ -221,7 +221,7 @@ export default function ChatSessionPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-950 relative">
+    <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden bg-slate-950 relative">
       {/* Session Header */}
       <header className="px-6 py-4 border-b border-slate-900/60 bg-slate-950/80 backdrop-blur-md flex items-center gap-4 shrink-0 z-10">
         <button
@@ -246,7 +246,7 @@ export default function ChatSessionPage() {
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-6 py-6 select-text"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6 select-text"
       >
         {loading ? (
           <div className="h-full flex items-center justify-center">

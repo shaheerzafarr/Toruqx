@@ -105,9 +105,9 @@ export default function Sidebar() {
 
   return (
     <aside 
-      className={`h-screen flex flex-col bg-slate-950 border-r border-slate-900 select-none z-40 fixed md:relative top-0 bottom-0 left-0 transition-all duration-300 ease-in-out
+      className={`h-[100dvh] max-h-[100dvh] flex flex-col bg-slate-950 border-r border-slate-900 select-none z-40 fixed md:relative top-0 bottom-0 left-0 transition-all duration-300 ease-in-out
         ${isCollapsed ? 'md:w-16' : 'md:w-72'}
-        ${isMobileOpen ? 'translate-x-0 w-72 shadow-2xl' : '-translate-x-full md:translate-x-0'}
+        ${isMobileOpen ? 'translate-x-0 w-72 shadow-2xl pointer-events-auto' : '-translate-x-full md:translate-x-0 pointer-events-none md:pointer-events-auto invisible md:visible'}
       `}
     >
       {/* Sidebar Header */}

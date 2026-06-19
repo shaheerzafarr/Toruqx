@@ -10,7 +10,7 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   const { isMobileOpen, setIsMobileOpen } = useSidebar();
 
   return (
-    <div className="flex-1 flex overflow-hidden h-screen max-h-screen relative">
+    <div className="flex-1 flex overflow-hidden h-[100dvh] max-h-[100dvh] w-full max-w-full relative">
       {/* Mobile Sidebar Backdrop Overlay */}
       {isMobileOpen && (
         <div 
@@ -21,7 +21,7 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
       
       <Sidebar />
       
-      <main className="flex-1 flex flex-col h-screen max-h-screen overflow-hidden bg-slate-950">
+      <main className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden w-full max-w-full bg-slate-950">
         {children}
       </main>
     </div>
