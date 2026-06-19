@@ -17,6 +17,9 @@ export default function LoginPage() {
   const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '[::1]');
+  const bypass = isLocal || process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_BYPASS_TURNSTILE === 'true';
+
   useEffect(() => {
     // If user is already authenticated, redirect straight to chat
     if (isAuthenticated && !isLoading) {
@@ -95,7 +98,6 @@ export default function LoginPage() {
       return;
     }
 
-    const bypass = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_BYPASS_TURNSTILE === 'true';
     const token = turnstileToken || (bypass ? 'dev-bypass-token' : null);
 
     if (!token) {
@@ -208,7 +210,7 @@ export default function LoginPage() {
           </div>
 
           {/* Cloudflare Turnstile Verification Widget */}
-          {process.env.NODE_ENV !== 'development' && process.env.NEXT_PUBLIC_BYPASS_TURNSTILE !== 'true' && (
+          {!bypass && (
             <div className="flex justify-center my-3 bg-slate-950/20 py-2 border border-slate-800/30 rounded-xl">
               <div ref={containerRef}></div>
             </div>
@@ -216,7 +218,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={isLoading || (!turnstileToken && process.env.NODE_ENV !== 'development' && process.env.NEXT_PUBLIC_BYPASS_TURNSTILE !== 'true')}
+            disabled={isLoading || (!turnstileToken && !bypass)}
             className="w-full flex items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-950 font-semibold rounded-xl text-sm transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {isLoading ? (
