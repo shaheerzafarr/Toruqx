@@ -123,6 +123,16 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected error occurred. Please contact administration.", "status": "error"}
     )
 
+# Root welcome endpoint
+@app.get("/")
+async def root_welcome():
+    return {
+        "status": "online",
+        "message": "Welcome to the Toruqx Secure RAG Engine API",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
 # Advanced service-aware healthcheck endpoint
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health_check():
