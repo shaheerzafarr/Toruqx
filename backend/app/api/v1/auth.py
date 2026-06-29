@@ -34,19 +34,19 @@ class RateLimiter:
             return
 
         try:
-            current = await client.get(redis_key)
-            if current and int(current) >= self.limit:
+            # Atomic increment + TTL set to prevent TOCTOU race condition
+            async with client.pipeline(transaction=True) as pipe:
+                pipe.incr(redis_key)
+                pipe.expire(redis_key, self.window)  # Always refresh TTL
+                results = await pipe.execute()
+            
+            current_count = results[0]
+            if current_count > self.limit:
                 ttl = await client.ttl(redis_key)
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Too many attempts. Cloudflare rate limiting active. Please try again in {ttl if ttl > 0 else self.window} seconds."
+                    detail=f"Too many attempts. Please try again in {ttl if ttl > 0 else self.window} seconds."
                 )
-            
-            async with client.pipeline(transaction=True) as pipe:
-                pipe.incr(redis_key)
-                if not current:
-                    pipe.expire(redis_key, self.window)
-                await pipe.execute()
         except HTTPException:
             raise
         except Exception as e:
@@ -65,10 +65,24 @@ def _sync_verify_turnstile(token: str, secret_key: str) -> bool:
         "response": token
     }).encode("utf-8")
     try:
-        req = urllib.request.Request(url, data=data, method="POST")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST"
+        )
         with urllib.request.urlopen(req, timeout=5) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
-            return res_data.get("success", False)
+            res_body = response.read().decode("utf-8")
+            res_data = json.loads(res_body)
+            success = res_data.get("success", False)
+            if not success:
+                logger.warning(
+                    "Turnstile verification failed",
+                    error_codes=res_data.get("error-codes"),
+                    hostname=res_data.get("hostname"),
+                    action=res_data.get("action")
+                )
+            return success
     except Exception as e:
         logger.error("Turnstile verification API request failure", error=str(e))
         return False

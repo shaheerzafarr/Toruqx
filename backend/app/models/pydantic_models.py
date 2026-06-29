@@ -1,11 +1,12 @@
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field
+from typing import Literal
 import uuid
 from datetime import datetime
 
 class TextIngestionRequest(BaseModel):
     filename: str = Field(..., max_length=255, description="Arbitrary name or source name of the text content")
-    content: str = Field(..., description="The actual text content to chunk, embed, and index")
+    content: str = Field(..., max_length=10_000_000, description="The actual text content to chunk, embed, and index (max 10MB)")
 
 class IngestedDocumentResponse(BaseModel):
     id: uuid.UUID
@@ -23,7 +24,7 @@ class IngestedDocumentResponse(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str = Field(..., description="The query string to match against the vector database")
-    limit: int = Field(default=5, ge=1, le=100, description="The maximum number of search results to return")
+    limit: int = Field(default=5, ge=1, le=20, description="The maximum number of search results to return")
     document_id: uuid.UUID | None = Field(default=None, description="Optional document ID to restrict the search filter")
 
 class SearchResultPayload(BaseModel):
@@ -61,7 +62,7 @@ class ChatMessageResponse(BaseModel):
 class RAGQueryRequest(BaseModel):
     query: str = Field(..., description="The query question to answer using RAG knowledge database")
     limit: int = Field(default=5, ge=1, le=20, description="The maximum number of contexts to retrieve")
-    detail_level: str = Field(default="normal", description="Detail level of answer: normal, descriptive")
+    detail_level: Literal["normal", "descriptive"] = Field(default="normal", description="Detail level of answer: normal, descriptive")
 
 class RAGSourceItem(BaseModel):
     filename: str
@@ -75,13 +76,13 @@ class RAGQueryResponse(BaseModel):
 
 
 class UserCreate(BaseModel):
-    username: str = Field(..., min_length=3, max_length=150)
+    username: str = Field(..., min_length=3, max_length=150, pattern=r'^[a-zA-Z0-9_.-]+$')
     password: str = Field(..., min_length=6, max_length=100)
     turnstile_token: str | None = Field(default=None, description="Cloudflare Turnstile token")
 
 class UserLogin(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=150)
+    password: str = Field(..., min_length=6, max_length=100)
     turnstile_token: str | None = Field(default=None, description="Cloudflare Turnstile token")
 
 class UserResponse(BaseModel):

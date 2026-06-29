@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -22,14 +22,22 @@ router = APIRouter(prefix="/chat", tags=["Conversational Chat"])
 
 @router.get("/sessions", response_model=list[ChatSessionResponse], status_code=status.HTTP_200_OK)
 async def list_chat_sessions(
+    limit: int = Query(default=50, ge=1, le=200, description="Max sessions to return"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    List all chat sessions for the authenticated user, ordered by creation date descending.
+    List chat sessions for the authenticated user with pagination, ordered by creation date descending.
     """
     try:
-        query = select(ChatSession).where(ChatSession.user_id == current_user.id).order_by(ChatSession.created_at.desc())
+        query = (
+            select(ChatSession)
+            .where(ChatSession.user_id == current_user.id)
+            .order_by(ChatSession.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await db.execute(query)
         sessions = result.scalars().all()
         return sessions
@@ -61,7 +69,7 @@ async def create_chat_session(
         logger.error("Create session route failure", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create chat session"
+            detail="Failed to create chat session."
         )
 
 async def verify_session_owner(session_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> ChatSession:
@@ -93,6 +101,7 @@ async def send_message_to_session(
         response = await rag_service.answer_query(
             db=db,
             session_id=session_id,
+            user_id=current_user.id,
             query=payload.query,
             limit=payload.limit,
             detail_level=payload.detail_level
@@ -109,7 +118,7 @@ async def send_message_to_session(
         logger.error("RAG message execution failure", session_id=str(session_id), error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Conversational generation failed: {str(e)}"
+            detail="Conversational generation failed. Please try again."
         )
 
 @router.get("/session/{session_id}/history", response_model=list[ChatMessageResponse], status_code=status.HTTP_200_OK)
@@ -158,7 +167,7 @@ async def delete_chat_session(
         logger.error("RAG message session deletion failure", session_id=str(session_id), error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete session: {str(e)}"
+            detail="Failed to delete session."
         )
 
 @router.post("/session/{session_id}/stream", status_code=status.HTTP_200_OK)
@@ -174,8 +183,8 @@ async def send_message_stream(
     try:
         await verify_session_owner(session_id, current_user.id, db)
         generator = rag_service.stream_query(
-            db=db,
             session_id=session_id,
+            user_id=current_user.id,
             query=payload.query,
             limit=payload.limit,
             detail_level=payload.detail_level
@@ -192,5 +201,5 @@ async def send_message_stream(
         logger.error("RAG streaming route execution failure", session_id=str(session_id), error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Streaming generation failed: {str(e)}"
+            detail="Streaming generation failed. Please try again."
         )

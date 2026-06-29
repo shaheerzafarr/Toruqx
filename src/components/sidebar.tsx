@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, usePathname } from 'next/navigation';
 import { useAuth } from './auth-provider';
 import { useSidebar } from './sidebar-context';
 import { apiService } from '../services/api';
@@ -17,7 +17,9 @@ import {
   Database,
   ChevronRight,
   Trash2,
-  Menu
+  Menu,
+  Check,
+  X
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -42,7 +44,10 @@ export default function Sidebar() {
 
   const router = useRouter();
   const params = useParams();
+  const pathname = usePathname();
   const currentSessionId = params?.id as string;
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchSessions() {
@@ -83,14 +88,7 @@ export default function Sidebar() {
     }
   };
 
-  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!confirm('Are you sure you want to delete this conversation?')) {
-      return;
-    }
-    
+  const confirmDeleteSession = async (sessionId: string) => {
     try {
       await apiService.chat.deleteSession(sessionId);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
@@ -99,7 +97,10 @@ export default function Sidebar() {
       }
     } catch (err) {
       console.error('Failed to delete session', err);
-      alert('Failed to delete this chat session.');
+      setDeleteError('Failed to delete chat.');
+      setTimeout(() => setDeleteError(null), 3000);
+    } finally {
+      setDeletingSessionId(null);
     }
   };
 
@@ -220,7 +221,7 @@ export default function Sidebar() {
           className={`flex items-center rounded-xl transition-all ${
             isCollapsed ? 'w-10 h-10 justify-center' : 'w-full px-3 py-2.5 justify-between text-sm font-medium'
           } ${
-            pathnameMatches('/chat/upload') 
+            pathname === '/chat/upload' 
               ? 'bg-slate-900 text-slate-100 border border-slate-800' 
               : 'text-slate-400 hover:bg-slate-900/50 hover:text-slate-200'
           }`}
@@ -233,11 +234,12 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      {!isCollapsed && (
-        <div className="px-4 py-2">
+        <div className="px-4 py-2 flex items-center justify-between">
           <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Recent Sessions</span>
+          {deleteError && (
+            <span className="text-[10px] text-red-400 font-bold animate-pulse">{deleteError}</span>
+          )}
         </div>
-      )}
 
       {/* Dynamic Sessions List */}
       <div className={`flex-1 overflow-y-auto pb-4 space-y-1 ${isCollapsed ? 'px-0 flex flex-col items-center' : 'px-4'}`}>
@@ -277,13 +279,44 @@ export default function Sidebar() {
                   {!isCollapsed && <span className="truncate font-medium">{session.title}</span>}
                 </Link>
                 {!isCollapsed && (
-                  <button
-                    onClick={(e) => handleDeleteSession(e, session.id)}
-                    title="Delete Chat"
-                    className="absolute right-2.5 opacity-100 md:opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all cursor-pointer z-10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  deletingSessionId === session.id ? (
+                    <div className="absolute right-2 flex items-center gap-1 z-20">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          confirmDeleteSession(session.id);
+                        }}
+                        title="Confirm Delete"
+                        className="p-1 text-emerald-400 hover:bg-slate-800 rounded-md transition-all cursor-pointer"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeletingSessionId(null);
+                        }}
+                        title="Cancel"
+                        className="p-1 text-red-400 hover:bg-slate-800 rounded-md transition-all cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDeletingSessionId(session.id);
+                      }}
+                      title="Delete Chat"
+                      className="absolute right-2.5 opacity-100 md:opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all cursor-pointer z-10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )
                 )}
               </div>
             );
@@ -330,8 +363,4 @@ export default function Sidebar() {
   );
 }
 
-// Simple path helper to verify selection highlights
-function pathnameMatches(path: string): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.location.pathname === path;
-}
+// Path matches helper is removed since usePathname hook is used directly.

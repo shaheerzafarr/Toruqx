@@ -30,7 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!token) {
         setIsLoading(false);
         // If not authenticated and not on login/signup page, redirect to login
-        if (pathname !== '/login' && pathname !== '/signup') {
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/login' && currentPath !== '/signup') {
           router.replace('/login');
         }
         return;
@@ -46,7 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('auth_token');
         setUser(null);
         setIsAuthenticated(false);
-        if (pathname !== '/login' && pathname !== '/signup') {
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/login' && currentPath !== '/signup') {
           router.replace('/login');
         }
       } finally {
@@ -55,7 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     loadUser();
-  }, [pathname, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = async (username: string, password: string, turnstileToken?: string) => {
     setIsLoading(true);

@@ -159,7 +159,7 @@ export default function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
       {/* User Avatar Icon */}
       {!isAssistant && (
         <div className="p-2.5 bg-slate-100 text-slate-950 rounded-xl shrink-0">
-          <User className="h-4.5 w-4.5" />
+          <UserIcon className="h-4.5 w-4.5" />
         </div>
       )}
     </div>
@@ -167,7 +167,7 @@ export default function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
 }
 
 // Simple fallback user icon to avoid Radix avatar loads
-function User(props: React.SVGProps<SVGSVGElement>) {
+function UserIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

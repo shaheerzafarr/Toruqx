@@ -13,6 +13,7 @@ logger = structlog.get_logger(__name__)
 def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[str]:
     """
     Splits text recursively by paragraphs, lines, and words to respect chunk boundaries.
+    Overlap is capped so combined chunk never exceeds chunk_size.
     """
     if not text:
         return []
@@ -20,6 +21,12 @@ def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> l
     paragraphs = text.split("\n\n")
     chunks = []
     current_chunk = ""
+    
+    def _get_overlap_prefix(chunk_content: str) -> str:
+        """Get overlap text, capped at half of chunk_size to prevent oversized chunks."""
+        max_overlap = min(chunk_overlap, chunk_size // 2)
+        overlap_idx = max(0, len(chunk_content) - max_overlap)
+        return chunk_content[overlap_idx:]
     
     for para in paragraphs:
         para = para.strip()
@@ -45,9 +52,8 @@ def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> l
                     for word in words:
                         if len(temp_chunk) + len(word) + 1 > chunk_size:
                             chunks.append(temp_chunk.strip())
-                            # Setup next chunk with overlap
-                            overlap_idx = max(0, len(temp_chunk) - chunk_overlap)
-                            temp_chunk = temp_chunk[overlap_idx:] + " " + word
+                            overlap_prefix = _get_overlap_prefix(temp_chunk)
+                            temp_chunk = overlap_prefix + " " + word
                         else:
                             temp_chunk += " " + word
                     if temp_chunk.strip():
@@ -55,15 +61,21 @@ def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> l
                 else:
                     if len(current_chunk) + len(line) + 1 > chunk_size:
                         chunks.append(current_chunk)
-                        overlap_idx = max(0, len(current_chunk) - chunk_overlap)
-                        current_chunk = current_chunk[overlap_idx:] + "\n" + line
+                        overlap_prefix = _get_overlap_prefix(current_chunk)
+                        current_chunk = (overlap_prefix + "\n" + line).strip()
+                        # Cap: if overlap pushed us over, truncate overlap
+                        if len(current_chunk) > chunk_size:
+                            current_chunk = line
                     else:
                         current_chunk = (current_chunk + "\n" + line).strip()
         else:
             if len(current_chunk) + len(para) + 2 > chunk_size:
                 chunks.append(current_chunk)
-                overlap_idx = max(0, len(current_chunk) - chunk_overlap)
-                current_chunk = current_chunk[overlap_idx:] + "\n\n" + para
+                overlap_prefix = _get_overlap_prefix(current_chunk)
+                current_chunk = (overlap_prefix + "\n\n" + para).strip()
+                # Cap: if overlap pushed us over, truncate overlap
+                if len(current_chunk) > chunk_size:
+                    current_chunk = para
             else:
                 current_chunk = (current_chunk + "\n\n" + para).strip()
                 
@@ -74,93 +86,6 @@ def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> l
 
 
 class IngestionService:
-    @staticmethod
-    async def ingest_document(
-        db: AsyncSession,
-        filename: str,
-        content: str,
-        file_size: int,
-        user_id: uuid.UUID | None = None
-    ) -> IngestedDocument:
-        logger.info("Starting document ingestion...", filename=filename, size=file_size, user_id=str(user_id) if user_id else None)
-        
-        # 1. Create base DB audit log in 'pending' status
-        doc_record = IngestedDocument(
-            filename=filename,
-            file_size=file_size,
-            status="pending",
-            chunk_count=0,
-            user_id=user_id
-        )
-        db.add(doc_record)
-        await db.commit()
-        await db.refresh(doc_record)
-
-        try:
-            # 2. Update status to processing
-            doc_record.status = "processing"
-            await db.commit()
-            await db.refresh(doc_record)
-
-            # 3. Chunk the text (using size=1000, overlap=300 for dense embeddings context)
-            chunks = chunk_text(content, chunk_size=1000, chunk_overlap=300)
-            doc_record.chunk_count = len(chunks)
-            await db.commit()
-
-            if not chunks:
-                raise ValueError("Document content was empty or could not be chunked.")
-
-            # 4. Generate local embeddings (runs asynchronously in CPU/GPU thread pool)
-            logger.info("Generating embeddings for chunks...", count=len(chunks))
-            embeddings = await embedding_service.get_embeddings(chunks)
-
-            # 5. Prepare data points for Qdrant
-            points = []
-            for idx, (chunk, vector) in enumerate(zip(chunks, embeddings)):
-                point_id = str(uuid.uuid4())
-                points.append(
-                    qmodels.PointStruct(
-                        id=point_id,
-                        vector=vector,
-                        payload={
-                            "document_id": str(doc_record.id),
-                            "user_id": str(user_id) if user_id else None,
-                            "filename": filename,
-                            "text": chunk,
-                            "chunk_index": idx
-                        }
-                    )
-                )
-
-            # 6. Upload points to Qdrant kb_documents collection
-            logger.info("Uploading points to Qdrant...", points_count=len(points))
-            await qdrant_service.client.upsert(
-                collection_name="kb_documents",
-                wait=True,
-                points=points
-            )
-
-            # 7. Update status to completed
-            doc_record.status = "completed"
-            await db.commit()
-            await db.refresh(doc_record)
-            logger.info("Document ingestion completed successfully.", filename=filename, doc_id=str(doc_record.id))
-
-            # Invalidate all dynamic RAG query cache entries since the knowledge database has changed
-            try:
-                from app.services.redis_cache import redis_service
-                await redis_service.clear_cache_pattern("rag_cache:*")
-            except Exception as cache_err:
-                logger.error("Failed to clear RAG cache on ingestion", error=str(cache_err))
-
-        except Exception as e:
-            logger.exception("Document ingestion pipeline failure", filename=filename, error=str(e))
-            doc_record.status = "failed"
-            doc_record.error_message = str(e)
-            await db.commit()
-            await db.refresh(doc_record)
-
-        return doc_record
 
     @staticmethod
     async def process_file_ingestion_bg(
@@ -259,8 +184,9 @@ class IngestionService:
 
             except Exception as e:
                 logger.exception("Background document ingestion pipeline failure", doc_id=str(doc_id), error=str(e))
-                # Commit failed status in DB using separate session
+                # H-2: Rollback potentially broken session state before updating error status
                 try:
+                    await db.rollback()
                     query = select(IngestedDocument).where(IngestedDocument.id == doc_id)
                     res = await db.execute(query)
                     doc_record = res.scalar_one_or_none()

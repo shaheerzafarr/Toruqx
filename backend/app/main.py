@@ -1,6 +1,7 @@
 # pyrefly: ignore [missing-import]
 from contextlib import asynccontextmanager
 import asyncio
+import time
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Request, status
 # pyrefly: ignore [missing-import]
@@ -88,13 +89,32 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Parse CORS origins from config (comma-separated string)
+_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Audit logging middleware — logs all requests for compliance
+@app.middleware("http")
+async def audit_log_middleware(request: Request, call_next):
+    start_time = time.monotonic()
+    response = await call_next(request)
+    duration_ms = round((time.monotonic() - start_time) * 1000, 2)
+    logger.info(
+        "Request completed",
+        method=request.method,
+        path=request.url.path,
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+        client_ip=request.client.host if request.client else "unknown",
+    )
+    return response
 
 app.include_router(api_v1_router)
 

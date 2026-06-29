@@ -37,5 +37,5 @@ async def search_knowledge_base(
         logger.error("Knowledge base search route failure", query=payload.query, user_id=str(current_user.id), error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Vector search failed: {str(e)}"
+            detail="Vector search failed. Please try again."
         )

@@ -13,7 +13,9 @@ import {
   AlertCircle,
   FileCode,
   Trash2,
-  Menu
+  Menu,
+  Check,
+  X
 } from 'lucide-react';
 
 interface ActivePollingItem {
@@ -27,6 +29,7 @@ export default function DocumentUploadPage() {
   const [uploads, setUploads] = useState<DocumentUploadStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isListLoading, setIsListLoading] = useState<boolean>(true);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   
   // Track active intervals to clear them on unmount
   const activePollers = useRef<ActivePollingItem[]>([]);
@@ -173,17 +176,15 @@ export default function DocumentUploadPage() {
     }
   }
 
-  const handleDeleteDocument = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document? This will permanently remove its indexed vector points from Qdrant.')) {
-      return;
-    }
-
+  const confirmDeleteDocument = async (documentId: string) => {
     try {
       await apiService.ingestion.deleteDocument(documentId);
       setUploads((prev) => prev.filter((doc) => doc.id !== documentId));
     } catch (err: any) {
       console.error('Failed to delete document', err);
-      alert(err?.message || 'Failed to delete this document.');
+      setError(err?.message || 'Failed to delete this document.');
+    } finally {
+      setDeletingDocId(null);
     }
   };
 
@@ -345,13 +346,33 @@ export default function DocumentUploadPage() {
                       </div>
                     )}
 
-                    <button
-                      onClick={() => handleDeleteDocument(upload.id)}
-                      title="Delete Document"
-                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-900 border border-transparent hover:border-slate-850 rounded-xl transition-all cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {deletingDocId === upload.id ? (
+                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+                        <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Confirm?</span>
+                        <button
+                          onClick={() => confirmDeleteDocument(upload.id)}
+                          className="p-1 text-emerald-400 hover:bg-slate-800 rounded-md cursor-pointer transition-all"
+                          title="Confirm Delete"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeletingDocId(null)}
+                          className="p-1 text-red-400 hover:bg-slate-800 rounded-md cursor-pointer transition-all"
+                          title="Cancel"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeletingDocId(upload.id)}
+                        title="Delete Document"
+                        className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-900 border border-transparent hover:border-slate-850 rounded-xl transition-all cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

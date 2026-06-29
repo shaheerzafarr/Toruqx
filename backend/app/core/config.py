@@ -19,9 +19,15 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = Field(default="")
     EMBEDDING_MODEL_NAME: str = Field(default="all-MiniLM-L6-v2")
 
-    # Security settings
-    JWT_SECRET_KEY: str = Field(default="super_secret_jwt_key_change_me_in_production")
+    # Security settings — JWT_SECRET_KEY is REQUIRED, no insecure default
+    JWT_SECRET_KEY: str = Field(...)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
+
+    # CORS — restrict to known frontend origins in production
+    CORS_ORIGINS: str = Field(default="http://localhost:3000")
+
+    # Upload size limits
+    MAX_UPLOAD_SIZE_MB: int = Field(default=50)
 
     # Turnstile settings
     TURNSTILE_SECRET_KEY: str = Field(default="")

@@ -42,16 +42,19 @@ class QdrantService:
             try:
                 await self.client.get_collection(collection_name)
                 logger.info("Qdrant collection already exists.", collection_name=collection_name)
-            except (UnexpectedResponse, Exception):
-                logger.info("Creating new vector collection in Qdrant...", collection_name=collection_name, vector_size=vector_size)
-                await self.client.create_collection(
-                    collection_name=collection_name,
-                    vectors_config=qmodels.VectorParams(
-                        size=vector_size,
-                        distance=qmodels.Distance.COSINE
+            except UnexpectedResponse as e:
+                if hasattr(e, 'status_code') and e.status_code == 404:
+                    logger.info("Creating new vector collection in Qdrant...", collection_name=collection_name, vector_size=vector_size)
+                    await self.client.create_collection(
+                        collection_name=collection_name,
+                        vectors_config=qmodels.VectorParams(
+                            size=vector_size,
+                            distance=qmodels.Distance.COSINE
+                        )
                     )
-                )
-                logger.info("Vector collection created successfully.", collection_name=collection_name)
+                    logger.info("Vector collection created successfully.", collection_name=collection_name)
+                else:
+                    raise  # Re-raise non-404 errors (auth failures, network errors, etc.)
             
             # Ensure text field is full-text indexed for keyword search queries
             await self.client.create_payload_index(
@@ -213,7 +216,7 @@ class QdrantService:
             keyword_hits = [
                 {
                     "id": str(point.id),
-                    "score": 1.0,  # scroll results are rank ordered, assign dummy baseline score
+                    "score": 0.5,  # scroll results are unranked; use modest baseline to avoid over-weighting in RRF
                     "payload": point.payload
                 }
                 for point in scroll_response[0]

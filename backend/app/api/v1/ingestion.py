@@ -1,6 +1,6 @@
 import uuid
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 # pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
 # pyrefly: ignore [missing-import]
@@ -9,6 +9,7 @@ from sqlalchemy import select
 import structlog
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.pydantic_models import TextIngestionRequest, IngestedDocumentResponse
 from app.models.sqlalchemy_models import IngestedDocument, User
 from app.api.v1.auth import get_current_user
@@ -58,7 +59,7 @@ async def ingest_text(
         logger.error("Ingest text route failure", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to schedule text ingestion: {str(e)}"
+            detail="Failed to schedule text ingestion."
         )
 
 @router.post("/file", response_model=IngestedDocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -77,9 +78,17 @@ async def ingest_file(
             detail="Unsupported file format. Please upload text-based files (.txt, .md, .json) or PDF (.pdf)."
         )
     
+    max_file_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     try:
         content_bytes = await file.read()
         file_size = len(content_bytes)
+        
+        # Enforce file size limit
+        if file_size > max_file_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File exceeds maximum allowed size of {settings.MAX_UPLOAD_SIZE_MB} MB."
+            )
         
         # Create base DB audit log in 'pending' status
         doc_record = IngestedDocument(
@@ -103,11 +112,13 @@ async def ingest_file(
         )
         
         return doc_record
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Ingest file route failure", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to schedule file ingestion: {str(e)}"
+            detail="Failed to schedule file ingestion."
         )
 
 @router.get("/status/{document_id}", response_model=IngestedDocumentResponse)
@@ -135,19 +146,27 @@ async def get_ingestion_status(
         logger.error("Get status route failure", doc_id=str(document_id), error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="Failed to retrieve ingestion status."
         )
 
 @router.get("", response_model=list[IngestedDocumentResponse])
 async def list_ingested_documents(
+    limit: int = Query(default=50, ge=1, le=200, description="Max documents to return"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    List all ingested documents in the database for the current user, ordered by creation date descending.
+    List ingested documents for the current user with pagination, ordered by creation date descending.
     """
     try:
-        query = select(IngestedDocument).where(IngestedDocument.user_id == current_user.id).order_by(IngestedDocument.created_at.desc())
+        query = (
+            select(IngestedDocument)
+            .where(IngestedDocument.user_id == current_user.id)
+            .order_by(IngestedDocument.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await db.execute(query)
         docs = result.scalars().all()
         return docs
@@ -202,7 +221,7 @@ async def delete_ingested_document(
         logger.error("Delete document route failure", doc_id=str(document_id), error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete document: {str(e)}"
+            detail="Failed to delete document."
         )
 
 

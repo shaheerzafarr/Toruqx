@@ -1,11 +1,21 @@
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
 # Sanitize DATABASE_URL for asyncpg driver compatibility (convert sslmode= to ssl=)
-db_url = settings.DATABASE_URL
-if "sslmode=" in db_url:
-    db_url = db_url.replace("sslmode=", "ssl=")
+def _sanitize_db_url(url: str) -> str:
+    """Safely convert sslmode= query param to ssl= for asyncpg compatibility."""
+    parsed = urlparse(url)
+    if parsed.query and "sslmode" in parsed.query:
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        if "sslmode" in params:
+            params["ssl"] = params.pop("sslmode")
+        new_query = urlencode(params, doseq=True)
+        return urlunparse(parsed._replace(query=new_query))
+    return url
+
+db_url = _sanitize_db_url(settings.DATABASE_URL)
 
 # Create async database engine
 engine = create_async_engine(
@@ -32,5 +42,9 @@ async def get_db():
     async with AsyncSessionLocal() as session:
         try:
             yield session
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
+

@@ -13,12 +13,88 @@ from app.services.redis_cache import redis_service
 
 logger = structlog.get_logger(__name__)
 
+
+def _build_system_instruction(detail_level: str) -> str:
+    """Build the system instruction for the RAG prompt. Extracted to avoid duplication (M-12)."""
+    base = (
+        "You are a production-grade Toruqx Secure RAG Engine.\n"
+        "Analyze and answer the user's question using ONLY the provided contexts below.\n"
+        "If the provided contexts do not contain enough information to answer the question, "
+        "reply exactly with: 'No matches found after checking all records.'\n"
+        "Do not make up facts, extrapolate, or hallucinate beyond what is explicitly written in the contexts.\n\n"
+        "You MUST follow these strict guidelines:\n"
+        "## CORE SEARCH RULES\n"
+        "1. EXHAUSTIVE SCAN — Always go through EVERY record, document, or entry before forming your answer. Never stop early after finding the first few matches.\n"
+        "2. SEARCH EVERYWHERE — Look in ALL fields, sections, sub-sections, categories, bullet points, and descriptions. A match anywhere counts as a valid match.\n"
+        "3. NO ASSUMPTIONS — Never assume a record does not contain something without explicitly checking it first.\n"
+        "4. COMPLETE LIST — When asked to \"list all\", your response must include every match found. Never return a partial list.\n"
+        "5. SELF-VERIFY — Before responding, internally ask yourself:\n"
+        "   \"Have I checked every single record?\" and \"Did I search all fields, not just the main/obvious ones?\"\n"
+        "   Only respond after both answers are YES.\n\n"
+        "## ACCURACY RULES\n"
+        "6. If you find a match, include it — regardless of which section or field it appears in.\n"
+        "7. If you miss something and the user corrects you, acknowledge the error, re-scan fully, and provide the corrected complete answer.\n"
+        "8. Never fabricate or assume data. Only report what is explicitly present in the provided information.\n\n"
+        "## RESPONSE FORMAT\n"
+        "- Clearly list all matches with the relevant detail (e.g., which section/source document the match was found in).\n"
+        "- State the total count at the end: \"Total found: X\"\n"
+        "- If no matches found, explicitly say: \"No matches found after checking all records.\"\n"
+    )
+    if detail_level == "descriptive":
+        base += (
+            "\nProvide a highly detailed, exhaustive, and in-depth descriptive answer. "
+            "Explain the concepts thoroughly, list all relevant details, and provide complete explanations based on the context."
+        )
+    else:
+        base += (
+            "\nProvide a clear, medium-length response that summarizes the main points concisely "
+            "without leaving out key facts, but avoiding unnecessary verbosity."
+        )
+    return base
+
+
+def _deduplicate_hits(hits: list[dict], max_context_chunks: int) -> list[dict]:
+    """Deduplicate hits by content text to prevent identical chunks from crowding results."""
+    unique_hits = []
+    seen_texts = set()
+    for hit in hits:
+        text_content = hit["payload"].get("text", "").strip()
+        if text_content not in seen_texts:
+            seen_texts.add(text_content)
+            unique_hits.append(hit)
+            if len(unique_hits) >= max_context_chunks:
+                break
+    return unique_hits
+
+
+def _build_context_and_sources(hits: list[dict]) -> tuple[str, list[dict]]:
+    """Build context string and sources list from search hits."""
+    context_str = ""
+    sources = []
+    for hit in hits:
+        payload = hit["payload"]
+        filename = payload.get("filename", "unknown")
+        chunk_text = payload.get("text", "")
+        chunk_idx = payload.get("chunk_index", 0)
+
+        context_str += f"\n--- Source File: {filename} (Chunk {chunk_idx}) ---\n{chunk_text}\n"
+
+        sources.append({
+            "filename": filename,
+            "chunk_index": chunk_idx,
+            "score": hit["score"],
+            "text": chunk_text
+        })
+    return context_str, sources
+
+
 class RAGService:
     @staticmethod
     async def answer_query(
         db: AsyncSession,
         session_id: uuid.UUID,
         query: str,
+        user_id: uuid.UUID,
         limit: int = 5,
         detail_level: str = "normal"
     ) -> dict:
@@ -29,8 +105,11 @@ class RAGService:
         """
         logger.info("Executing grounded RAG pipeline...", session_id=str(session_id), query=query)
         
-        # 1. Verify chat session exists
-        query_session = select(ChatSession).where(ChatSession.id == session_id)
+        # 1. Verify chat session exists AND belongs to the user (H-4)
+        query_session = select(ChatSession).where(
+            ChatSession.id == session_id,
+            ChatSession.user_id == user_id
+        )
         result = await db.execute(query_session)
         session = result.scalar_one_or_none()
         if not session:
@@ -49,6 +128,8 @@ class RAGService:
                 generated_title = generated_title.strip().strip('"').strip("'")
                 if generated_title and len(generated_title) > 0:
                     session.title = generated_title[:100]
+                    # H-5: Commit title change explicitly
+                    await db.commit()
                     logger.info("Auto-renamed chat session", session_id=str(session_id), new_title=session.title)
             except Exception as title_err:
                 logger.error("Failed to auto-rename session title", error=str(title_err))
@@ -56,15 +137,16 @@ class RAGService:
                 if len(fallback_title) > 40:
                     fallback_title = fallback_title[:37] + "..."
                 session.title = fallback_title
+                await db.commit()
 
         # 2. Append User query message to Postgres history
         user_msg = ChatMessage(session_id=session_id, role="user", content=query)
         db.add(user_msg)
         await db.commit()
 
-        # 3. Check Redis cache first (exact query match cache)
+        # 3. Check Redis cache first (exact query match cache, scoped by user_id — H-3)
         normalized_query = query.strip().lower()
-        cache_key = f"rag_cache:{detail_level}:{normalized_query}"
+        cache_key = f"rag_cache:{user_id}:{detail_level}:{normalized_query}"
         
         try:
             cached_data = await redis_service.get(cache_key)
@@ -94,74 +176,13 @@ class RAGService:
             user_id=session.user_id
         )
 
-        # Deduplicate hits by content text to prevent identical chunks from duplicate file uploads crowding out results
-        unique_hits = []
-        seen_texts = set()
-        # Cap LLM context chunks generously to ensure high recall for list queries
+        # Deduplicate and cap context chunks
         max_context_chunks = max(limit, 15)
-        for hit in hits:
-            text_content = hit["payload"].get("text", "").strip()
-            if text_content not in seen_texts:
-                seen_texts.add(text_content)
-                unique_hits.append(hit)
-                if len(unique_hits) >= max_context_chunks:
-                    break
-        hits = unique_hits
+        hits = _deduplicate_hits(hits, max_context_chunks)
 
         # 5. Formulate contextual grounding prompt
-        context_str = ""
-        sources = []
-        
-        for hit in hits:
-            payload = hit["payload"]
-            filename = payload.get("filename", "unknown")
-            chunk_text = payload.get("text", "")
-            chunk_idx = payload.get("chunk_index", 0)
-            
-            context_str += f"\n--- Source File: {filename} (Chunk {chunk_idx}) ---\n{chunk_text}\n"
-            
-            sources.append({
-                "filename": filename,
-                "chunk_index": chunk_idx,
-                "score": hit["score"],
-                "text": chunk_text
-            })
-
-        system_instruction = (
-            "You are a production-grade Toruqx Secure RAG Engine.\n"
-            "Analyze and answer the user's question using ONLY the provided contexts below.\n"
-            "If the provided contexts do not contain enough information to answer the question, "
-            "reply exactly with: 'No matches found after checking all records.'\n"
-            "Do not make up facts, extrapolate, or hallucinate beyond what is explicitly written in the contexts.\n\n"
-            "You MUST follow these strict guidelines:\n"
-            "## CORE SEARCH RULES\n"
-            "1. EXHAUSTIVE SCAN — Always go through EVERY record, document, or entry before forming your answer. Never stop early after finding the first few matches.\n"
-            "2. SEARCH EVERYWHERE — Look in ALL fields, sections, sub-sections, categories, bullet points, and descriptions. A match anywhere counts as a valid match.\n"
-            "3. NO ASSUMPTIONS — Never assume a record does not contain something without explicitly checking it first.\n"
-            "4. COMPLETE LIST — When asked to \"list all\", your response must include every match found. Never return a partial list.\n"
-            "5. SELF-VERIFY — Before responding, internally ask yourself:\n"
-            "   \"Have I checked every single record?\" and \"Did I search all fields, not just the main/obvious ones?\"\n"
-            "   Only respond after both answers are YES.\n\n"
-            "## ACCURACY RULES\n"
-            "6. If you find a match, include it — regardless of which section or field it appears in.\n"
-            "7. If you miss something and the user corrects you, acknowledge the error, re-scan fully, and provide the corrected complete answer.\n"
-            "8. Never fabricate or assume data. Only report what is explicitly present in the provided information.\n\n"
-            "## RESPONSE FORMAT\n"
-            "- Clearly list all matches with the relevant detail (e.g., which section/source document the match was found in).\n"
-            "- State the total count at the end: \"Total found: X\"\n"
-            "- If no matches found, explicitly say: \"No matches found after checking all records.\"\n"
-        )
-        if detail_level == "descriptive":
-            system_instruction += (
-                "\nProvide a highly detailed, exhaustive, and in-depth descriptive answer. "
-                "Explain the concepts thoroughly, list all relevant details, and provide complete explanations based on the context."
-            )
-        else:
-            system_instruction += (
-                "\nProvide a clear, medium-length response that summarizes the main points concisely "
-                "without leaving out key facts, but avoiding unnecessary verbosity."
-            )
-
+        context_str, sources = _build_context_and_sources(hits)
+        system_instruction = _build_system_instruction(detail_level)
         prompt = f"Retrieved Contexts:\n{context_str}\n\nUser Question: {query}"
 
         # 6. Execute LLM call or fallback if no document chunks were retrieved
@@ -199,8 +220,8 @@ class RAGService:
 
     @staticmethod
     async def stream_query(
-        db: AsyncSession,
         session_id: uuid.UUID,
+        user_id: uuid.UUID,
         query: str,
         limit: int = 5,
         detail_level: str = "normal"
@@ -209,199 +230,148 @@ class RAGService:
         Retrieves matching contexts from Qdrant, builds a grounded prompt,
         queries Gemini asynchronously using a chunk-by-chunk stream, and yields
         SSE format data events.
+        
+        M-7: Uses its own DB session to prevent SessionClosedError since
+        FastAPI's request-scoped session may close before the generator finishes.
         """
-        # 1. Verify chat session exists
-        query_session = select(ChatSession).where(ChatSession.id == session_id)
-        result = await db.execute(query_session)
-        session = result.scalar_one_or_none()
-        if not session:
-            raise ValueError(f"Chat session {session_id} not found.")
+        from app.core.database import AsyncSessionLocal
 
-        # Auto-rename session if it has the default title
-        if session.title == "New Conversation":
-            try:
-                title_prompt = (
-                    "You are a helpful assistant. Generate a very short, concise topic title (maximum 4-5 words) "
-                    "for a chat session based on this first user query. Do not use quotes, punctuation, or formatting. "
-                    "Output ONLY the title text, nothing else.\n\n"
-                    f"User Query: {query}"
-                )
-                generated_title = await gemini_service.generate_response(title_prompt)
-                generated_title = generated_title.strip().strip('"').strip("'")
-                if generated_title and len(generated_title) > 0:
-                    session.title = generated_title[:100]
-                    logger.info("Auto-renamed chat session", session_id=str(session_id), new_title=session.title)
-            except Exception as title_err:
-                logger.error("Failed to auto-rename session title", error=str(title_err))
-                fallback_title = query.strip()
-                if len(fallback_title) > 40:
-                    fallback_title = fallback_title[:37] + "..."
-                session.title = fallback_title
-
-        # 2. Append User query message to Postgres history
-        user_msg = ChatMessage(session_id=session_id, role="user", content=query)
-        db.add(user_msg)
-        await db.commit()
-
-        # 3. Check Redis cache first (exact query match cache)
-        normalized_query = query.strip().lower()
-        cache_key = f"rag_cache:{detail_level}:{normalized_query}"
-        
-        try:
-            cached_data = await redis_service.get(cache_key)
-            if cached_data:
-                logger.info("RAG Streaming Cache Hit! Returning cached response.", query=query)
-                response_dict = json.loads(cached_data)
-                
-                # Append Assistant answer message to Postgres history
-                assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=response_dict["answer"])
-                db.add(assistant_msg)
-                await db.commit()
-                
-                # Yield cached sources and stream out cached tokens
-                yield f"data: {json.dumps({'type': 'sources', 'sources': response_dict['sources']})}\n\n"
-                words = response_dict["answer"].split(" ")
-                for i, word in enumerate(words):
-                    spacer = " " if i > 0 else ""
-                    yield f"data: {json.dumps({'type': 'token', 'content': spacer + word})}\n\n"
-                    await asyncio.sleep(0.015)
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                return
-        except Exception as e:
-            logger.error("Failed to query Redis cache (falling back to search/LLM)", error=str(e))
-
-        # 4. Cache Miss - Retrieve relevant document chunks from Qdrant
-        logger.info("RAG Streaming Cache Miss. Querying vector store and LLM...", query=query)
-        query_vector = await embedding_service.get_embedding(query)
-        # Retrieve more points to allow deduplication and maximize recall
-        retrieve_limit = max(limit * 5, 30)
-        hits = await qdrant_service.search_hybrid(
-            collection_name="kb_documents",
-            query_vector=query_vector,
-            query_text=query,
-            limit=retrieve_limit,
-            user_id=session.user_id
-        )
-
-        # Deduplicate hits by content text to prevent identical chunks from duplicate file uploads crowding out results
-        unique_hits = []
-        seen_texts = set()
-        # Cap LLM context chunks generously to ensure high recall for list queries
-        max_context_chunks = max(limit, 15)
-        for hit in hits:
-            text_content = hit["payload"].get("text", "").strip()
-            if text_content not in seen_texts:
-                seen_texts.add(text_content)
-                unique_hits.append(hit)
-                if len(unique_hits) >= max_context_chunks:
-                    break
-        hits = unique_hits
-
-        # 5. Formulate contextual grounding prompt
-        context_str = ""
-        sources = []
-        
-        for hit in hits:
-            payload = hit["payload"]
-            filename = payload.get("filename", "unknown")
-            chunk_text = payload.get("text", "")
-            chunk_idx = payload.get("chunk_index", 0)
-            
-            context_str += f"\n--- Source File: {filename} (Chunk {chunk_idx}) ---\n{chunk_text}\n"
-            
-            sources.append({
-                "filename": filename,
-                "chunk_index": chunk_idx,
-                "score": hit["score"],
-                "text": chunk_text
-            })
-
-        # Yield retrieved sources first
-        yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-
-        system_instruction = (
-            "You are a production-grade Toruqx Secure RAG Engine.\n"
-            "Analyze and answer the user's question using ONLY the provided contexts below.\n"
-            "If the provided contexts do not contain enough information to answer the question, "
-            "reply exactly with: 'No matches found after checking all records.'\n"
-            "Do not make up facts, extrapolate, or hallucinate beyond what is explicitly written in the contexts.\n\n"
-            "You MUST follow these strict guidelines:\n"
-            "## CORE SEARCH RULES\n"
-            "1. EXHAUSTIVE SCAN — Always go through EVERY record, document, or entry before forming your answer. Never stop early after finding the first few matches.\n"
-            "2. SEARCH EVERYWHERE — Look in ALL fields, sections, sub-sections, categories, bullet points, and descriptions. A match anywhere counts as a valid match.\n"
-            "3. NO ASSUMPTIONS — Never assume a record does not contain something without explicitly checking it first.\n"
-            "4. COMPLETE LIST — When asked to \"list all\", your response must include every match found. Never return a partial list.\n"
-            "5. SELF-VERIFY — Before responding, internally ask yourself:\n"
-            "   \"Have I checked every single record?\" and \"Did I search all fields, not just the main/obvious ones?\"\n"
-            "   Only respond after both answers are YES.\n\n"
-            "## ACCURACY RULES\n"
-            "6. If you find a match, include it — regardless of which section or field it appears in.\n"
-            "7. If you miss something and the user corrects you, acknowledge the error, re-scan fully, and provide the corrected complete answer.\n"
-            "8. Never fabricate or assume data. Only report what is explicitly present in the provided information.\n\n"
-            "## RESPONSE FORMAT\n"
-            "- Clearly list all matches with the relevant detail (e.g., which section/source document the match was found in).\n"
-            "- State the total count at the end: \"Total found: X\"\n"
-            "- If no matches found, explicitly say: \"No matches found after checking all records.\"\n"
-        )
-        if detail_level == "descriptive":
-            system_instruction += (
-                "\nProvide a highly detailed, exhaustive, and in-depth descriptive answer. "
-                "Explain the concepts thoroughly, list all relevant details, and provide complete explanations based on the context."
+        async with AsyncSessionLocal() as db:
+            # 1. Verify chat session exists AND belongs to user (H-4)
+            query_session = select(ChatSession).where(
+                ChatSession.id == session_id,
+                ChatSession.user_id == user_id
             )
-        else:
-            system_instruction += (
-                "\nProvide a clear, medium-length response that summarizes the main points concisely "
-                "without leaving out key facts, but avoiding unnecessary verbosity."
+            result = await db.execute(query_session)
+            session = result.scalar_one_or_none()
+            if not session:
+                raise ValueError(f"Chat session {session_id} not found.")
+
+            # Auto-rename session if it has the default title
+            if session.title == "New Conversation":
+                try:
+                    title_prompt = (
+                        "You are a helpful assistant. Generate a very short, concise topic title (maximum 4-5 words) "
+                        "for a chat session based on this first user query. Do not use quotes, punctuation, or formatting. "
+                        "Output ONLY the title text, nothing else.\n\n"
+                        f"User Query: {query}"
+                    )
+                    generated_title = await gemini_service.generate_response(title_prompt)
+                    generated_title = generated_title.strip().strip('"').strip("'")
+                    if generated_title and len(generated_title) > 0:
+                        session.title = generated_title[:100]
+                        await db.commit()
+                        logger.info("Auto-renamed chat session", session_id=str(session_id), new_title=session.title)
+                except Exception as title_err:
+                    logger.error("Failed to auto-rename session title", error=str(title_err))
+                    fallback_title = query.strip()
+                    if len(fallback_title) > 40:
+                        fallback_title = fallback_title[:37] + "..."
+                    session.title = fallback_title
+                    await db.commit()
+
+            # 2. Append User query message to Postgres history
+            user_msg = ChatMessage(session_id=session_id, role="user", content=query)
+            db.add(user_msg)
+            await db.commit()
+
+            # 3. Check Redis cache first (exact query match cache, scoped by user_id — H-3)
+            normalized_query = query.strip().lower()
+            cache_key = f"rag_cache:{user_id}:{detail_level}:{normalized_query}"
+            
+            try:
+                cached_data = await redis_service.get(cache_key)
+                if cached_data:
+                    logger.info("RAG Streaming Cache Hit! Returning cached response.", query=query)
+                    response_dict = json.loads(cached_data)
+                    
+                    # Append Assistant answer message to Postgres history
+                    assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=response_dict["answer"])
+                    db.add(assistant_msg)
+                    await db.commit()
+                    
+                    # Yield cached sources and stream out cached tokens
+                    yield f"data: {json.dumps({'type': 'sources', 'sources': response_dict['sources']})}\n\n"
+                    words = response_dict["answer"].split(" ")
+                    for i, word in enumerate(words):
+                        spacer = " " if i > 0 else ""
+                        yield f"data: {json.dumps({'type': 'token', 'content': spacer + word})}\n\n"
+                        await asyncio.sleep(0.015)
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    return
+            except Exception as e:
+                logger.error("Failed to query Redis cache (falling back to search/LLM)", error=str(e))
+
+            # 4. Cache Miss - Retrieve relevant document chunks from Qdrant
+            logger.info("RAG Streaming Cache Miss. Querying vector store and LLM...", query=query)
+            query_vector = await embedding_service.get_embedding(query)
+            retrieve_limit = max(limit * 5, 30)
+            hits = await qdrant_service.search_hybrid(
+                collection_name="kb_documents",
+                query_vector=query_vector,
+                query_text=query,
+                limit=retrieve_limit,
+                user_id=session.user_id
             )
 
-        prompt = f"Retrieved Contexts:\n{context_str}\n\nUser Question: {query}"
+            # Deduplicate and cap context chunks
+            max_context_chunks = max(limit, 15)
+            hits = _deduplicate_hits(hits, max_context_chunks)
 
-        # 6. Execute LLM call or fallback
-        if not hits:
-            answer = "No matches found after checking all records."
-            yield f"data: {json.dumps({'type': 'token', 'content': answer})}\n\n"
-        else:
-            answer = ""
-            try:
-                client = gemini_service.get_client()
-                config_params = {"system_instruction": system_instruction}
-                
-                # Fetch async stream
-                response = await client.aio.models.generate_content_stream(
-                    model="gemini-3.1-flash-lite",
-                    contents=prompt,
-                    config=config_params
-                )
-                
-                async for chunk in response:
-                    text_chunk = chunk.text
-                    if text_chunk:
-                        answer += text_chunk
-                        yield f"data: {json.dumps({'type': 'token', 'content': text_chunk})}\n\n"
-            except Exception as e:
-                logger.error("Failed to generate response from Gemini stream", error=str(e))
-                err_msg = "Error: Failed to obtain a response from the reasoning backend."
-                answer = err_msg
-                yield f"data: {json.dumps({'type': 'error', 'content': err_msg})}\n\n"
+            # 5. Formulate contextual grounding prompt
+            context_str, sources = _build_context_and_sources(hits)
 
-        # 7. Append Assistant answer message to Postgres history
-        assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=answer)
-        db.add(assistant_msg)
-        await db.commit()
+            # Yield retrieved sources first
+            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
-        # 8. Write response payload to Redis cache (1 hour TTL)
-        # Prevent caching fallback/error answers to minimize cache staleness for unanswered questions
-        if hits and not answer.startswith("No matches found"):
-            try:
-                response_data = {
-                    "answer": answer,
-                    "sources": sources
-                }
-                await redis_service.set(cache_key, json.dumps(response_data), expire_seconds=3600)
-                logger.info("RAG Streaming Response written to Redis cache successfully.", query=query)
-            except Exception as e:
-                logger.error("Failed to write response to Redis cache", error=str(e))
+            system_instruction = _build_system_instruction(detail_level)
+            prompt = f"Retrieved Contexts:\n{context_str}\n\nUser Question: {query}"
 
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            # 6. Execute LLM call or fallback
+            if not hits:
+                answer = "No matches found after checking all records."
+                yield f"data: {json.dumps({'type': 'token', 'content': answer})}\n\n"
+            else:
+                answer = ""
+                try:
+                    client = gemini_service.get_client()
+                    config_params = {"system_instruction": system_instruction}
+                    
+                    # Fetch async stream
+                    response = await client.aio.models.generate_content_stream(
+                        model="gemini-3.1-flash-lite",
+                        contents=prompt,
+                        config=config_params
+                    )
+                    
+                    async for chunk in response:
+                        text_chunk = chunk.text
+                        if text_chunk:
+                            answer += text_chunk
+                            yield f"data: {json.dumps({'type': 'token', 'content': text_chunk})}\n\n"
+                except Exception as e:
+                    logger.error("Failed to generate response from Gemini stream", error=str(e))
+                    err_msg = "Error: Failed to obtain a response from the reasoning backend."
+                    answer = err_msg
+                    yield f"data: {json.dumps({'type': 'error', 'content': err_msg})}\n\n"
+
+            # 7. Append Assistant answer message to Postgres history
+            assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=answer)
+            db.add(assistant_msg)
+            await db.commit()
+
+            # 8. Write response payload to Redis cache (1 hour TTL)
+            if hits and not answer.startswith("No matches found"):
+                try:
+                    response_data = {
+                        "answer": answer,
+                        "sources": sources
+                    }
+                    await redis_service.set(cache_key, json.dumps(response_data), expire_seconds=3600)
+                    logger.info("RAG Streaming Response written to Redis cache successfully.", query=query)
+                except Exception as e:
+                    logger.error("Failed to write response to Redis cache", error=str(e))
+
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 rag_service = RAGService()
